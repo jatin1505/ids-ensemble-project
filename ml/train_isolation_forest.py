@@ -23,8 +23,21 @@ import time
 import joblib
 import numpy as np
 from sklearn.ensemble import IsolationForest
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
+ 
 
 from config import PROCESSED_DIR, SAVED_MODELS_DIR, SEED
+from config import BENIGN_LABEL, PROCESSED_DIR, SAVED_MODELS_DIR
+ 
+model = joblib.load(SAVED_MODELS_DIR / "isolation_forest.joblib")
+X_test = np.load(PROCESSED_DIR / "X_test.npy")
+y_test_raw = np.load(PROCESSED_DIR / "y_test.npy", allow_pickle=True)
 
 # contamination='auto' lets sklearn set its own internal threshold --
 # we don't use IsolationForest's built-in predict()/threshold at all,
@@ -74,6 +87,36 @@ def main():
         "See docs/ARCHITECTURE.md section 3, step 1."
     )
 
+y_true = np.where(y_test_raw == BENIGN_LABEL, 0, 1)  # 0 = benign, 1 = attack
+ 
+# sklearn's IsolationForest.predict() returns 1 for inliers (normal),
+# -1 for outliers (anomaly) -- using its own internal threshold from
+# contamination='auto' set at training time.
+raw_pred = model.predict(X_test)
+y_pred = np.where(raw_pred == 1, 0, 1)  # 0 = predicted benign, 1 = predicted attack
+ 
+print("=" * 55)
+print("Isolation Forest -- standalone evaluation on test set")
+print("=" * 55)
+print(f"Test rows: {len(y_true):,}  "
+      f"(benign={int((y_true == 0).sum()):,}, attack={int((y_true == 1).sum()):,})")
+ 
+cm = confusion_matrix(y_true, y_pred)
+print("\nConfusion Matrix:")
+print("                  Predicted Benign   Predicted Attack")
+print(f"Actual Benign     {cm[0][0]:>16,}   {cm[0][1]:>16,}")
+print(f"Actual Attack     {cm[1][0]:>16,}   {cm[1][1]:>16,}")
+ 
+acc = accuracy_score(y_true, y_pred)
+prec = precision_score(y_true, y_pred, pos_label=1)
+rec = recall_score(y_true, y_pred, pos_label=1)
+f1 = f1_score(y_true, y_pred, pos_label=1)
+ 
+print(f"\nAccuracy:  {acc:.4f}   <-- misleading here, see note in the docstring")
+print(f"Precision: {prec:.4f}   (of flagged attacks, how many were real)")
+print(f"Recall:    {rec:.4f}   (of real attacks, how many got flagged)")
+print(f"F1 Score:  {f1:.4f}")
+print("=" * 55)
 
 if __name__ == "__main__":
     main()
