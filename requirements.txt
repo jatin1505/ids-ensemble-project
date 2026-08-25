@@ -1,7 +1,3 @@
-# Target: Python 3.10 or 3.11. tensorflow==2.15.0 and numpy==1.26.4 don't
-# have installable builds for very new Python versions like 3.13/3.14 yet --
-# use `py -3.10 -m venv .venv` (or 3.11) when creating the virtual env.
-
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
 pydantic==2.7.1
