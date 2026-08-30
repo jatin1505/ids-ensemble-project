@@ -28,13 +28,14 @@ read as a model output.
 
 import asyncio
 import time
+from pathlib import Path
 
 import pandas as pd
 
 from backend import model_runtime
 from backend.websocket_manager import manager
 
-DATA_PATH = "data/CICIOT23/validation/validation.csv"
+DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "CICIOT23" / "validation" / "validation.csv"
 SAMPLE_SIZE = 500              # rows kept in memory and cycled for the demo
 REPLAY_INTERVAL_SECONDS = 2
 RANDOM_SEED = 42                # reproducible sample -- same rows every run
@@ -64,7 +65,11 @@ def _load_replay_sample() -> pd.DataFrame:
     # simple option here -- 500 rows is plenty of variety for a live
     # demo, and a fixed random_state means every teammate who runs this
     # gets the same sample.
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Replay dataset not found: {DATA_PATH}")
     df = pd.read_csv(DATA_PATH)
+    if len(df) < SAMPLE_SIZE:
+        raise ValueError(f"Replay dataset has {len(df)} rows; expected at least {SAMPLE_SIZE}.")
     return df.sample(n=SAMPLE_SIZE, random_state=RANDOM_SEED).reset_index(drop=True)
 
 

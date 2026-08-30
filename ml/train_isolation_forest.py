@@ -11,11 +11,28 @@ splits to isolate are considered typical/normal.
 Trained benign-only, like every model in this ensemble -- see
 docs/DECISIONS.md #1 for why that's required, not optional.
 
-Run from the project root:
-    python ml/train_isolation_forest.py
+Run from ml/:
+    python train_isolation_forest.py
 
-Input:  data/processed/X_train_benign.npy  (from preprocessing.py)
+Input:  data/processed/X_train_benign.npy    (from preprocessing.py)
+        data/processed/X_test.npy, y_test.npy (from preprocessing.py)
 Output: ml/saved_models/isolation_forest.joblib
+
+FIX (was previously broken): the old version of this file had
+`model = joblib.load(...)` and the whole evaluation block sitting at
+MODULE level, above/outside `main()`. That meant it tried to load a
+saved model before training had produced one (crash on a clean run),
+and even if a stale file existed, it evaluated THAT stale model
+instead of the one just trained. Everything now runs inside main(),
+in order: train -> save -> evaluate the model that was just trained.
+
+Note on the evaluation block below: this is a STANDALONE sanity check
+of Isolation Forest's own built-in predict() (using its internal
+contamination-based threshold). It is NOT how the real system makes
+decisions -- ensemble/risk_engine.py does its own thresholding on the
+fused, normalized ensemble score (see ensemble/evaluate.py for that
+comparison). This block exists only so we have an early, honest
+"does this model work at all on its own" number for the report.
 """
 
 import time
@@ -30,27 +47,20 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
- 
 
-from config import PROCESSED_DIR, SAVED_MODELS_DIR, SEED
-from config import BENIGN_LABEL, PROCESSED_DIR, SAVED_MODELS_DIR
- 
-model = joblib.load(SAVED_MODELS_DIR / "isolation_forest.joblib")
-X_test = np.load(PROCESSED_DIR / "X_test.npy")
-y_test_raw = np.load(PROCESSED_DIR / "y_test.npy", allow_pickle=True)
+from config import BENIGN_LABEL, PROCESSED_DIR, SAVED_MODELS_DIR, SEED
 
 # contamination='auto' lets sklearn set its own internal threshold --
-# we don't use IsolationForest's built-in predict()/threshold at all,
-# since AGL's risk_engine.py does its own thresholding on the fused
-# ensemble score later. We only ever call decision_function() from here on.
+# we don't use IsolationForest's built-in predict()/threshold for the
+# real pipeline at all, since AGL's risk_engine.py does its own
+# thresholding on the fused ensemble score later. We only ever call
+# decision_function() from the live pipeline. predict() is used ONLY
+# in the standalone sanity-check block below.
 N_ESTIMATORS = 200
 CONTAMINATION = "auto"
 
 
-def main():
-    X_train = np.load(PROCESSED_DIR / "X_train_benign.npy")
-    print(f"Loaded benign training matrix: {X_train.shape}")
-
+def train(X_train: np.ndarray) -> IsolationForest:
     model = IsolationForest(
         n_estimators=N_ESTIMATORS,
         contamination=CONTAMINATION,
@@ -58,11 +68,57 @@ def main():
         n_jobs=-1,  # use all available CPU cores -- this is the one
                     # model in the ensemble where that's trivial to do
     )
-
     print(f"Training IsolationForest (n_estimators={N_ESTIMATORS})...")
     t0 = time.time()
     model.fit(X_train)
     print(f"Done in {time.time() - t0:.1f}s")
+    return model
+
+
+def evaluate(model: IsolationForest, X_test: np.ndarray, y_test_raw: np.ndarray) -> None:
+    """Standalone sanity-check eval -- see module docstring note above.
+    Always called on the model that was JUST trained and saved in this
+    same run, never a separately reloaded copy."""
+    y_true = np.where(y_test_raw == BENIGN_LABEL, 0, 1)  # 0 = benign, 1 = attack
+
+    # sklearn's IsolationForest.predict() returns 1 for inliers (normal),
+    # -1 for outliers (anomaly) -- using its own internal threshold from
+    # contamination='auto' set at training time.
+    raw_pred = model.predict(X_test)
+    y_pred = np.where(raw_pred == 1, 0, 1)  # 0 = predicted benign, 1 = predicted attack
+
+    print("=" * 55)
+    print("Isolation Forest -- standalone evaluation on test set")
+    print("=" * 55)
+    print(f"Test rows: {len(y_true):,}  "
+          f"(benign={int((y_true == 0).sum()):,}, attack={int((y_true == 1).sum()):,})")
+
+    cm = confusion_matrix(y_true, y_pred)
+    print("\nConfusion Matrix:")
+    print("                  Predicted Benign   Predicted Attack")
+    print(f"Actual Benign     {cm[0][0]:>16,}   {cm[0][1]:>16,}")
+    print(f"Actual Attack     {cm[1][0]:>16,}   {cm[1][1]:>16,}")
+
+    acc = accuracy_score(y_true, y_pred)
+    prec = precision_score(y_true, y_pred, pos_label=1, zero_division=0)
+    rec = recall_score(y_true, y_pred, pos_label=1, zero_division=0)
+    f1 = f1_score(y_true, y_pred, pos_label=1, zero_division=0)
+
+    print(f"\nAccuracy:  {acc:.4f}   <-- misleading: this test split is ~97-98% attack rows,")
+    print("                          so 'flag everything as attack' scores high on accuracy")
+    print("                          without the model doing anything useful. Don't lead")
+    print("                          with this number in the report -- lead with F1/recall.")
+    print(f"Precision: {prec:.4f}   (of flagged attacks, how many were real)")
+    print(f"Recall:    {rec:.4f}   (of real attacks, how many got flagged)")
+    print(f"F1 Score:  {f1:.4f}")
+    print("=" * 55)
+
+
+def main():
+    X_train = np.load(PROCESSED_DIR / "X_train_benign.npy")
+    print(f"Loaded benign training matrix: {X_train.shape}")
+
+    model = train(X_train)
 
     # Quick sanity check: score the training data itself and look at
     # the distribution. decision_function() -> higher = more normal.
@@ -87,36 +143,10 @@ def main():
         "See docs/ARCHITECTURE.md section 3, step 1."
     )
 
-y_true = np.where(y_test_raw == BENIGN_LABEL, 0, 1)  # 0 = benign, 1 = attack
- 
-# sklearn's IsolationForest.predict() returns 1 for inliers (normal),
-# -1 for outliers (anomaly) -- using its own internal threshold from
-# contamination='auto' set at training time.
-raw_pred = model.predict(X_test)
-y_pred = np.where(raw_pred == 1, 0, 1)  # 0 = predicted benign, 1 = predicted attack
- 
-print("=" * 55)
-print("Isolation Forest -- standalone evaluation on test set")
-print("=" * 55)
-print(f"Test rows: {len(y_true):,}  "
-      f"(benign={int((y_true == 0).sum()):,}, attack={int((y_true == 1).sum()):,})")
- 
-cm = confusion_matrix(y_true, y_pred)
-print("\nConfusion Matrix:")
-print("                  Predicted Benign   Predicted Attack")
-print(f"Actual Benign     {cm[0][0]:>16,}   {cm[0][1]:>16,}")
-print(f"Actual Attack     {cm[1][0]:>16,}   {cm[1][1]:>16,}")
- 
-acc = accuracy_score(y_true, y_pred)
-prec = precision_score(y_true, y_pred, pos_label=1)
-rec = recall_score(y_true, y_pred, pos_label=1)
-f1 = f1_score(y_true, y_pred, pos_label=1)
- 
-print(f"\nAccuracy:  {acc:.4f}   <-- misleading here, see note in the docstring")
-print(f"Precision: {prec:.4f}   (of flagged attacks, how many were real)")
-print(f"Recall:    {rec:.4f}   (of real attacks, how many got flagged)")
-print(f"F1 Score:  {f1:.4f}")
-print("=" * 55)
+    X_test = np.load(PROCESSED_DIR / "X_test.npy")
+    y_test_raw = np.load(PROCESSED_DIR / "y_test.npy", allow_pickle=True)
+    evaluate(model, X_test, y_test_raw)
+
 
 if __name__ == "__main__":
     main()

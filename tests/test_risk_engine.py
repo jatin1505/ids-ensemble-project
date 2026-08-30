@@ -9,7 +9,14 @@ already correct and check what happens after that point.
 
 import pytest
 
-from ensemble.risk_engine import fuse, classify, build_risk_event, MODEL_WEIGHTS
+from ensemble.risk_engine import (
+    LOW_MEDIUM_THRESHOLD,
+    MEDIUM_HIGH_THRESHOLD,
+    MODEL_WEIGHTS,
+    build_risk_event,
+    classify,
+    fuse,
+)
 
 
 def test_equal_weights_average_correctly():
@@ -41,25 +48,35 @@ def test_unrecognized_model_names_raise():
         fuse({"some_future_model": 0.5})
 
 
+# UPDATED 2026-08-30: LOW_MEDIUM_THRESHOLD was recalibrated from 0.4 to
+# 0.05 against real validation-set data -- see docs/DECISIONS.md #12.
+# Per this test file's own original docstring: "if AGL retunes
+# LOW_MEDIUM_THRESHOLD or MEDIUM_HIGH_THRESHOLD, this test needs
+# updating to match, and that's expected, not a sign the test caught a
+# regression." This locks in boundary BEHAVIOR (which side of >= a
+# boundary value lands on) against the current real values, not the
+# old placeholders.
 @pytest.mark.parametrize(
     "score,expected",
     [
         (0.0, "Low"),
-        (0.39, "Low"),
-        (0.4, "Medium"),   # exactly at the low/medium boundary
+        (0.049, "Low"),
+        (0.05, "Medium"),   # exactly at the (new) low/medium boundary
         (0.69, "Medium"),
-        (0.7, "High"),     # exactly at the medium/high boundary
+        (0.7, "High"),      # medium/high boundary -- still unvalidated, see risk_engine.py TODO
         (1.0, "High"),
     ],
 )
 def test_classify_boundaries(score, expected):
-    # These boundary values (0.4, 0.7) are today's placeholders, not
-    # calibrated thresholds -- this test locks in the *boundary
-    # behavior* (which side of >= a boundary value lands on), not the
-    # specific numbers. If AGL retunes LOW_MEDIUM_THRESHOLD or
-    # MEDIUM_HIGH_THRESHOLD, this test needs updating to match, and
-    # that's expected, not a sign the test caught a regression.
     assert classify(score) == expected
+
+
+def test_thresholds_match_documented_calibration():
+    # Guards against LOW_MEDIUM_THRESHOLD silently drifting back to an
+    # old placeholder value in a future edit without docs/DECISIONS.md
+    # and this test both being updated together.
+    assert LOW_MEDIUM_THRESHOLD == pytest.approx(0.05)
+    assert MEDIUM_HIGH_THRESHOLD == pytest.approx(0.7)
 
 
 def test_build_risk_event_end_to_end():

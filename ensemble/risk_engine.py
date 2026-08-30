@@ -5,37 +5,58 @@ Fuses the three normalized, oriented scores from score_normalization.py
 into one final verdict per flow: a fused [0,1] score and a Low/Medium/
 High label.
 
-THIS FILE WAS EMPTY in the repo -- score_normalization.py and its tests
-are AGL's verified work, but this one and evaluate.py hadn't been
-written yet. This is a first draft to unblock backend integration, not
-a finished, reviewed module. Two things below are explicitly
-placeholders, not tuned decisions -- see the TODO comments on
-MODEL_WEIGHTS and the two thresholds. AGL should review this whole file
-before it's treated as final.
+MODEL_WEIGHTS is still an equal-weight placeholder -- see its comment
+below. LOW_MEDIUM_THRESHOLD is no longer a placeholder as of
+2026-08-30: it's been calibrated against real validation-set data (see
+docs/DECISIONS.md #12). MEDIUM_HIGH_THRESHOLD is still unvalidated.
 """
 
 from shared.schemas import ModelName, RiskEvent, RiskLevel
 
 # TODO(AGL): equal weighting is a starting default, not a tuned choice.
-# Once evaluate.py can show each model's standalone precision/recall on
-# the validation set, consider weighting toward whichever model(s)
-# separate benign from attack traffic best on their own. Either way,
-# log the reasoning in docs/DECISIONS.md -- "started equal, then tuned
-# based on X" is a real answer; unexplained numbers aren't.
+# The first real evaluation (docs/DECISIONS.md #12) found Isolation
+# Forest alone recalled far more attacks than the equally-weighted
+# fused ensemble at the OLD threshold (0.4) -- but that comparison was
+# threshold-dependent and hasn't been re-checked at the new
+# LOW_MEDIUM_THRESHOLD=0.05 below. Don't reweight from the old numbers;
+# rerun ensemble/evaluate.py's per-model threshold sweep at 0.05 first,
+# since AE/GMM's apparent weakness may have been an artifact of the
+# same miscalibrated cutoff that was just fixed for the fused score,
+# not a real gap in their standalone detection ability. Log whatever
+# is decided in docs/DECISIONS.md -- "started equal, then tuned based
+# on X" is a real answer; unexplained numbers aren't.
 MODEL_WEIGHTS: dict[ModelName, float] = {
     "isolation_forest": 1 / 3,
     "autoencoder": 1 / 3,
     "gmm": 1 / 3,
 }
 
-# TODO(AGL): placeholders, not calibrated. Should come from where the
-# FUSED score actually lands on the validation set once
-# validation_raw_scores.npz exists -- e.g. picking cutoffs that hit a
-# target recall on known attacks (weight toward recall, per
-# docs/DECISIONS.md -- a missed attack costs more than a false alarm
-# here). Not percentiles of any single model's raw score -- percentiles
-# of the fused score, after weighting.
-LOW_MEDIUM_THRESHOLD = 0.4
+# LOW_MEDIUM_THRESHOLD: CALIBRATED from real validation-set data -- see
+# docs/DECISIONS.md #12 for the full reasoning and evidence table.
+# Was 0.4 (an unvalidated placeholder). ensemble/evaluate.py's
+# threshold-sweep on the real fused ensemble score showed 0.4 was
+# missing ~74% of real attacks (recall=0.2570) despite a high ROC-AUC --
+# the models WERE separating attack from benign scores, the cutoff was
+# just drawn in the wrong place. 0.05 was the best-F2 candidate tested
+# (F2 weights recall over precision, per DECISIONS.md #1: a missed
+# attack costs more than a false alarm here): precision=0.9905,
+# recall=0.9940, F2=0.9933 on the real validation set (run: 2026-08-30).
+# Only 0.05-0.40 in steps of 0.05 were tested -- a finer search just
+# below 0.05 hasn't been done and might help marginally, but returns
+# are almost certainly diminishing given F2 is already 0.9933.
+LOW_MEDIUM_THRESHOLD = 0.05
+
+# TODO(AGL): still a placeholder, NOT yet backed by data -- do not
+# treat this as validated just because LOW_MEDIUM_THRESHOLD above was
+# checked and replaced. The Low/Medium boundary was tunable using
+# binary attack-vs-benign recall/precision (an evaluate.py threshold
+# sweep answers it directly). Medium-vs-High is a different question --
+# "how much MORE anomalous than 'flagged' does something need to be to
+# count as High" -- that recall/precision against a binary ground truth
+# can't answer, since both Medium and High are "correctly flagged
+# attack," just at different confidence. Needs the fused score's actual
+# percentile distribution among already-flagged (attack) rows (e.g.
+# "High = top 5% of flagged scores") before this number means anything.
 MEDIUM_HIGH_THRESHOLD = 0.7
 
 

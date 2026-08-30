@@ -6,17 +6,24 @@ Two things live here:
    connected, so we can push a new result to all of them at once.
 2. The /ws route -- what happens when a client connects.
 
-Once backend/replay_engine.py exists (next step, Phase 1), it will
-import `manager` from this file and call `manager.broadcast(event)`
-every time it produces a real RiskEvent -- it won't need to know
-anything about WebSockets itself. That separation is deliberate: this
-file owns "how to talk to connected clients," replay_engine.py will own
-"where results come from."
-"""
+backend/replay_engine.py owns "where results come from": it's started
+as a background task by backend/main.py's lifespan handler (not from
+this file) and calls manager.broadcast(event) directly, once per
+replayed flow. This file only owns "how to talk to connected clients."
+The /ws route below just accepts a connection and blocks, keeping it
+open until the client disconnects -- it does not generate any events
+itself.
 
-import asyncio
-import random
-import time
+FIX (was previously wrong): this file used to contain a Phase-0
+placeholder (_make_dummy_event()) that the /ws loop called every 2
+seconds, forever -- including a stale "lstm" key in model_breakdown
+left over from before the LSTM->GMM swap. That loop ran unconditionally
+regardless of whether replay_engine.py / model_runtime.py were wired
+up, so it was silently masking the fact that real data was never
+reaching the dashboard. Both the dummy generator and the loop that
+called it are removed; broadcasting is now driven entirely by
+replay_engine.py's own async loop calling manager.broadcast().
+"""
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -60,42 +67,17 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-def _make_dummy_event() -> RiskEvent:
-    """
-    Phase 0 placeholder only. Generates a fake-but-schema-valid RiskEvent
-    so Member B has a real stream to build the dashboard against before
-    any model or replay engine exists.
-
-    Delete this function (and the loop below that calls it) once
-    replay_engine.py is producing real events -- it should never run
-    alongside real data.
-    """
-    return RiskEvent(
-        flow_id=f"dummy-{random.randint(1000, 9999)}",
-        src_ip="192.168.1.10",
-        dst_ip="192.168.1.1",
-        protocol="TCP",
-        timestamp=time.time(),
-        risk_level=random.choice(["Low", "Medium", "High"]),
-        final_score=round(random.uniform(0, 1), 3),
-        model_breakdown={
-            "isolation_forest": round(random.uniform(0, 1), 3),
-            "autoencoder": round(random.uniform(0, 1), 3),
-            "lstm": round(random.uniform(0, 1), 3),
-        },
-    )
-
-
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
+        # The dashboard isn't expected to send us anything -- this just
+        # blocks here so the connection stays registered, and so we
+        # find out the MOMENT the client disconnects (tab closed, dev
+        # server restarted, etc.) via WebSocketDisconnect, instead of
+        # only discovering it later when broadcast() tries to send to a
+        # dead socket and fails.
         while True:
-            # Phase 0: broadcast a dummy event every 2 seconds so there's
-            # something for the frontend to receive and render.
-            # Phase 1: this loop gets replaced by replay_engine.py
-            # actually reading flows and calling manager.broadcast().
-            await manager.broadcast(_make_dummy_event())
-            await asyncio.sleep(2)
+            await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
