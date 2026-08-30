@@ -12,10 +12,10 @@ the report or viva.
 
 | Role | Module | Owns |
 |---|---|---|
-| GL (Jatin) | `backend/` | FastAPI app, WebSocket manager, replay engine, integration |
-| AGL | `ensemble/` | Score normalization, weighted fusion, risk thresholds, ensemble evaluation |
-| Member A | `ml/` | Preprocessing, EDA, training all three models, per-model metrics |
-| Member B | `frontend/` | React dashboard, WebSocket client, risk visualization |
+| Jatin | `backend/` | FastAPI app, WebSocket manager, replay engine, integration |
+| Pranav | `ensemble/` | Score normalization, weighted fusion, risk thresholds, ensemble evaluation |
+| Sanchit | `ml/` | Preprocessing, EDA, training all three models, per-model metrics |
+| Sangram | `frontend/` | React dashboard, WebSocket client, risk visualization |
 
 Full work breakdown and dependencies: `docs/ARCHITECTURE.md` section 6.
 
