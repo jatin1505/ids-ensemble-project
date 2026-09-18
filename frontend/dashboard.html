@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flow Risk Monitor</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<style>
+  :root {
+    --bg: #18130F;
+    --bg-glow: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(189,123,79,0.09), transparent);
+    --panel: #221B15;
+    --panel-raised: #2B2219;
+    --hairline: #3D3226;
+    --text: #F3E9DA;
+    --text-muted: #B7A78F;
+    --text-faint: #7C6E5A;
+    --accent: #C98453;
+    --accent-dim: rgba(201,132,83,0.14);
+    --low: #6FBF73;
+    --low-dim: rgba(111,191,115,0.14);
+    --medium: #E8A33D;
+    --medium-dim: rgba(232,163,61,0.16);
+    --high: #E5595A;
+    --high-dim: rgba(229,89,90,0.16);
+    --radius: 6px;
+    --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  /* Deliberately dark-by-default regardless of the viewer's OS/browser
+     preference -- a SOC-style monitoring console reads as an operator
+     instrument, not a document, and that reading depends on staying
+     dark consistently rather than flipping with the viewer's system
+     setting. Light is available but opt-in only, via ?theme=light
+     (see the App component), never automatic. */
+  :root[data-theme="light"] {
+    --bg: #F7F2EA;
+    --panel: #FFFFFF;
+    --panel-raised: #FBF7F0;
+    --hairline: #E4D9C8;
+    --text: #2A2116;
+    --text-muted: #6E6151;
+    --text-faint: #A2937C;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+  #root { min-height: 100vh; background-image: var(--bg-glow); }
+
+  .app { display: flex; flex-direction: column; min-height: 100vh; max-width: 1220px; margin: 0 auto; }
+
+  /* ---- Gate (sign-in) screen ---- */
+  .gate {
+    flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .gate-card {
+    width: 100%; max-width: 400px;
+    background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px;
+    padding: 32px 28px 28px;
+  }
+  .gate-mark {
+    width: 40px; height: 40px; border-radius: 9px;
+    background: linear-gradient(155deg, var(--accent), #8A5230);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-weight: 600; color: #1A1310; font-size: 16px;
+    margin-bottom: 18px;
+  }
+  .gate-card h1 { font-size: 19px; margin: 0 0 4px; }
+  .gate-card .gate-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+  .gate-google-slot { min-height: 44px; display: flex; justify-content: center; margin-bottom: 6px; }
+  .gate-status { font-size: 12px; color: var(--text-faint); text-align: center; margin: 8px 0 4px; font-family: var(--font-mono); }
+  .gate-divider {
+    display: flex; align-items: center; gap: 10px; margin: 20px 0 16px;
+    font-size: 11px; color: var(--text-faint); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .gate-divider::before, .gate-divider::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
+  .gate-preview-note {
+    font-size: 12px; color: var(--text-faint); background: var(--panel-raised);
+    border: 1px solid var(--hairline); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px; line-height: 1.5;
+  }
+  .gate-row { display: flex; gap: 8px; }
+  .gate-input {
+    flex: 1; background: var(--panel-raised); border: 1px solid var(--hairline); border-radius: var(--radius);
+    color: var(--text); font-family: var(--font-mono); font-size: 13px; padding: 9px 10px;
+  }
+  .gate-input:focus { outline: none; border-color: var(--accent); }
+  .btn {
+    font-family: var(--font-ui); font-size: 13px; font-weight: 500; border-radius: var(--radius);
+    border: 1px solid var(--hairline); background: var(--panel-raised); color: var(--text);
+    padding: 9px 14px; cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1A1310; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .quick-row { display: flex; gap: 8px; margin-top: 10px; }
+  .quick-row .btn { flex: 1; font-size: 12px; padding: 8px 10px; }
+
+  /* ---- Top bar ---- */
+  .topbar { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 20px 24px 16px; border-bottom: 1px solid var(--hairline); flex-wrap: wrap; }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-mark {
+    width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+    background: linear-gradient(155deg, var(--accent), #8A5230);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-weight: 600; color: #1A1310; font-size: 13px;
+  }
+  .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .topbar .subtitle { font-size: 12.5px; color: var(--text-muted); margin-top: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 12.5px; }
+  .mode-badge { padding: 3px 9px; border-radius: var(--radius); border: 1px solid var(--hairline); color: var(--text-muted); background: var(--panel-raised); }
+  .role-badge { padding: 3px 9px; border-radius: var(--radius); border: 1px solid var(--hairline); background: var(--panel-raised); }
+  .role-badge.admin { color: var(--accent); border-color: var(--accent); }
+  .role-badge.user { color: var(--text-muted); }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .conn-dot.live { background: var(--low); box-shadow: 0 0 0 3px var(--low-dim); }
+  .conn-dot.connecting { background: var(--medium); }
+  .conn-dot.simulated { background: var(--accent); }
+  .conn-dot.offline { background: var(--text-faint); }
+  .signout-link { color: var(--text-faint); text-decoration: underline; cursor: pointer; font-family: var(--font-ui); font-size: 12px; }
+  .signout-link:hover { color: var(--text); }
+
+  .sim-banner { margin: 14px 24px 0; padding: 8px 14px; background: var(--panel-raised); border: 1px solid var(--hairline); border-left: 3px solid var(--accent); border-radius: var(--radius); font-size: 12.5px; color: var(--text-muted); }
+  .sim-banner code { font-family: var(--font-mono); color: var(--text); background: var(--bg); padding: 1px 5px; border-radius: 3px; }
+
+  /* ---- Stats strip ---- */
+  .stats-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--hairline); margin: 20px 24px 0; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+  .stat-tile { background: var(--panel); padding: 14px 16px; }
+  .stat-tile .stat-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .stat-tile .stat-value { font-family: var(--font-mono); font-size: 22px; font-weight: 600; }
+  @media (max-width: 700px) { .stats-strip { grid-template-columns: repeat(2, 1fr); } }
+
+  /* ---- Main grid ---- */
+  .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; padding: 20px 24px 24px; flex: 1; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; }
+  .panel-head h2 { font-size: 13px; font-weight: 600; margin: 0; color: var(--text-muted); }
+  .panel-head .count { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .panel-locked { padding: 22px 16px; text-align: center; font-size: 12px; color: var(--text-faint); line-height: 1.6; }
+
+  .feed-col { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ---- Alerts strip ---- */
+  .alerts-panel { border-color: var(--hairline); }
+  .alerts-panel .panel-head { background: var(--high-dim); }
+  .alerts-empty { padding: 16px; font-size: 12.5px; color: var(--text-faint); }
+  .alert-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--hairline); font-family: var(--font-mono); font-size: 12px; }
+  .alert-row:last-child { border-bottom: none; }
+  .alert-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--high); flex-shrink: 0; }
+  .alert-row .flow-id { color: var(--text-muted); width: 70px; flex-shrink: 0; }
+  .alert-row .cat { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .alert-row .score { color: var(--high); }
+
+  /* ---- Feed ---- */
+  .feed { max-height: 480px; overflow-y: auto; }
+  .feed-empty { padding: 40px 16px; text-align: center; color: var(--text-faint); font-size: 13px; }
+  .feed-row { display: grid; grid-template-columns: 80px 56px 1fr 64px 64px; gap: 12px; align-items: center; padding: 9px 16px; border-bottom: 1px solid var(--hairline); font-family: var(--font-mono); font-size: 12.5px; animation: rowIn 240ms ease-out; }
+  .feed-row:last-child { border-bottom: none; }
+  .feed-row.risk-High { background: var(--high-dim); }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .feed-row .flow-id { color: var(--text-muted); }
+  .feed-row .proto { color: var(--text-faint); }
+  .feed-row .category { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-row .score { text-align: right; color: var(--text-muted); }
+  .pill { justify-self: start; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 500; font-family: var(--font-mono); }
+  .pill.Low { background: var(--low-dim); color: var(--low); }
+  .pill.Medium { background: var(--medium-dim); color: var(--medium); }
+  .pill.High { background: var(--high-dim); color: var(--high); }
+
+  /* ---- Sidebar stack ---- */
+  .sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+  .session-card { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+  .session-who { display: flex; flex-direction: column; }
+  .session-email { font-family: var(--font-mono); font-size: 12.5px; }
+  .session-role { font-size: 11px; color: var(--text-faint); margin-top: 2px; text-transform: capitalize; }
+
+  .gauge-body { padding: 22px 16px 20px; text-align: center; }
+  .gauge-score { font-family: var(--font-mono); font-size: 42px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+  .gauge-level { margin-top: 8px; font-size: 13px; font-weight: 500; }
+  .gauge-meta { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hairline); font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint); display: flex; justify-content: space-between; }
+
+  .breakdown-body { padding: 14px 16px 16px; }
+  .model-row { margin-bottom: 12px; }
+  .model-row:last-child { margin-bottom: 0; }
+  .model-row-top { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+  .model-name { color: var(--text-muted); }
+  .model-value { font-family: var(--font-mono); color: var(--text); }
+  .bar-track { height: 6px; background: var(--panel-raised); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width 300ms ease-out; }
+
+  .trend-body { padding: 12px 12px 14px; }
+
+  .dist-body { padding: 12px 16px 14px; }
+  .dist-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+  .dist-row:last-child { margin-bottom: 0; }
+  .dist-label { width: 118px; flex-shrink: 0; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dist-track { flex: 1; height: 6px; background: var(--panel-raised); border-radius: 3px; overflow: hidden; }
+  .dist-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+  .dist-count { font-family: var(--font-mono); color: var(--text-faint); width: 28px; text-align: right; flex-shrink: 0; }
+
+  .footer { padding: 14px 24px 22px; border-top: 1px solid var(--hairline); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--text-faint); }
+  .legend { display: flex; gap: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  @media (prefers-reduced-motion: reduce) { .feed-row { animation: none; } .bar-fill { transition: none; } }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const RISK_COLOR = { Low: "var(--low)", Medium: "var(--medium)", High: "var(--high)" };
+const MAX_FEED_ROWS = 60;
+const MAX_TREND_POINTS = 40;
+const MAX_ALERTS = 6;
+const AUTH_STORAGE_KEY = "idsDashboardAuth";
+
+// ---- Config -------------------------------------------------------------
+// Override any of these with URL params when self-hosting:
+//   ?ws=ws://host:8000/ws   ?api=http://host:8000   ?client_id=YOUR_GOOGLE_CLIENT_ID
+function getConfig() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    wsUrl: p.get("ws") || "ws://localhost:8000/ws",
+    apiBase: p.get("api") || "http://localhost:8000",
+    googleClientId: p.get("client_id") || "", // empty = Google button won't be offered
+  };
+}
+
+function safeStorage() {
+  try {
+    window.localStorage.setItem("__t", "1");
+    window.localStorage.removeItem("__t");
+    return window.localStorage;
+  } catch (e) { return null; }
+}
+
+function classify(score) {
+  if (score >= 0.7) return "High";
+  if (score >= 0.05) return "Medium";
+  return "Low";
+}
+
+// ---- Simulated feed (used when no real backend is reachable) -----------
+// Shaped like the real distribution from docs/DECISIONS.md #12, and
+// respects the signed-in role's field visibility the same way the real
+// backend's websocket_manager.py does -- so preview mode still honestly
+// demonstrates the access-control feature, not just the visuals.
+const SIM_CATEGORIES = [
+  ["BenignTraffic", 0.02, 0.10], ["DDoS-UDP_Flood", 0.05, 0.30],
+  ["DDoS-TCP_Flood", 0.05, 0.35], ["DDoS-SYN_Flood", 0.10, 0.40],
+  ["DDoS-ICMP_Flood", 0.55, 0.85], ["DDoS-RSTFINFlood", 0.55, 0.85],
+  ["Mirai-greeth_flood", 0.15, 0.45], ["Recon-PortScan", 0.10, 0.30],
+];
+const SIM_PROTOCOLS = ["TCP", "UDP", "ICMP", "ARP"];
+
+function simulateEvent(i, role) {
+  const [category, lo, hi] = SIM_CATEGORIES[Math.floor(Math.random() * SIM_CATEGORIES.length)];
+  const final_score = Math.round((lo + Math.random() * (hi - lo)) * 10000) / 10000;
+  const jitter = () => Math.min(1, Math.max(0, final_score + (Math.random() - 0.5) * 0.16));
+  const base = {
+    flow_id: `flow-${i}`,
+    protocol: SIM_PROTOCOLS[Math.floor(Math.random() * SIM_PROTOCOLS.length)],
+    timestamp: Date.now() / 1000,
+    risk_level: classify(final_score),
+    final_score,
+  };
+  if (role !== "admin") return base; // mirrors USER_VISIBLE_FIELDS server-side
+  return {
+    ...base,
+    model_breakdown: {
+      isolation_forest: Math.round(jitter() * 10000) / 10000,
+      autoencoder: Math.round(jitter() * 10000) / 10000,
+      gmm: Math.round(jitter() * 10000) / 10000,
+    },
+    attack_category: category,
+  };
+}
+
+// ---- Auth hook -----------------------------------------------------------
+function useAuth(apiBase) {
+  const storage = safeStorage();
+  const [auth, setAuth] = useState(() => {
+    if (!storage) return null;
+    try { return JSON.parse(storage.getItem(AUTH_STORAGE_KEY) || "null"); } catch (e) { return null; }
+  });
+  const [sessionNotice, setSessionNotice] = useState("");
+
+  const persist = useCallback((value) => {
+    setAuth(value);
+    if (!storage) return;
+    if (value) storage.setItem(AUTH_STORAGE_KEY, JSON.stringify(value));
+    else storage.removeItem(AUTH_STORAGE_KEY);
+  }, [storage]);
+
+  const signInWithGoogleCredential = useCallback(async (credential) => {
+    const res = await fetch(`${apiBase}/auth/google`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+    if (!res.ok) throw new Error("Google sign-in was rejected by the backend");
+    const data = await res.json();
+    persist({ ...data, mode: "google" });
+  }, [apiBase, persist]);
+
+  const signInDev = useCallback(async (email) => {
+    const res = await fetch(`${apiBase}/auth/dev`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) throw new Error("dev sign-in route unavailable");
+    const data = await res.json();
+    persist({ ...data, mode: "dev" });
+  }, [apiBase, persist]);
+
+  const signInPreview = useCallback((role) => {
+    const email = role === "admin" ? "admin@preview.local" : "user@preview.local";
+    persist({ token: null, email, role, mode: "preview" });
+  }, [persist]);
+
+  const signOut = useCallback(() => { persist(null); }, [persist]);
+
+  const invalidateSession = useCallback(() => {
+    persist(null);
+    setSessionNotice("Your session expired or was rejected — please sign in again.");
+  }, [persist]);
+
+  return { auth, signInWithGoogleCredential, signInDev, signInPreview, signOut, invalidateSession, sessionNotice, setSessionNotice };
+}
+
+// ---- Live feed / simulation hook -----------------------------------------
+function useRiskFeed(wsUrl, authState, onSessionInvalid) {
+  const [status, setStatus] = useState("connecting");
+  const [events, setEvents] = useState([]);
+  const simTimer = useRef(null);
+  const simCounter = useRef(0);
+  const retryTimer = useRef(null);
+
+  const pushEvent = useCallback((event) => {
+    setEvents((prev) => [event, ...prev].slice(0, MAX_FEED_ROWS));
+  }, []);
+
+  useEffect(() => {
+    setEvents([]);
+    if (!authState) return;
+
+    let socket, cancelled = false;
+    const role = authState.role;
+
+    function startSimulation() {
+      setStatus("simulated");
+      if (simTimer.current) return;
+      simTimer.current = setInterval(() => pushEvent(simulateEvent(simCounter.current++, role)), 1300);
+    }
+    function stopSimulation() {
+      if (simTimer.current) { clearInterval(simTimer.current); simTimer.current = null; }
+    }
+
+    // Preview mode never touches a real backend at all.
+    if (authState.mode === "preview" || !authState.token) {
+      startSimulation();
+      return () => stopSimulation();
+    }
+
+    function connect() {
+      setStatus((s) => (s === "simulated" ? s : "connecting"));
+      try {
+        socket = new WebSocket(`${wsUrl}?token=${encodeURIComponent(authState.token)}`);
+      } catch (e) { scheduleFallback(); return; }
+
+      socket.onopen = () => { if (cancelled) return; stopSimulation(); setStatus("live"); };
+      socket.onmessage = (msg) => {
+        try { pushEvent(JSON.parse(msg.data)); } catch (e) {}
+      };
+      socket.onclose = (evt) => {
+        if (cancelled) return;
+        if (evt.code === 4401) { onSessionInvalid(); return; } // rejected token -- do NOT fall back silently
+        scheduleFallback();
+      };
+      socket.onerror = () => { socket.close(); };
+    }
+
+    function scheduleFallback() {
+      setStatus("offline");
+      if (retryTimer.current) return;
+      retryTimer.current = setTimeout(() => {
+        retryTimer.current = null;
+        if (cancelled) return;
+        startSimulation();
+        connect();
+      }, 3000);
+    }
+
+    connect();
+    return () => {
+      cancelled = true;
+      if (socket) socket.close();
+      stopSimulation();
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    };
+  }, [wsUrl, authState, pushEvent, onSessionInvalid]);
+
+  return { status, events };
+}
+
+// ---- Google Identity Services loader --------------------------------------
+function useGoogleSignIn(clientId, onCredential) {
+  const [scriptState, setScriptState] = useState(clientId ? "loading" : "unconfigured");
+  const buttonRef = useRef(null);
+
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+    const timeout = setTimeout(() => { if (!cancelled) setScriptState("failed"); }, 3000);
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => {
+      if (cancelled) return;
+      clearTimeout(timeout);
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (resp) => onCredential(resp.credential),
+        });
+        if (buttonRef.current) {
+          window.google.accounts.id.renderButton(buttonRef.current, { theme: "outline", size: "large", width: 320 });
+        }
+        setScriptState("ready");
+      } catch (e) { setScriptState("failed"); }
+    };
+    script.onerror = () => { if (!cancelled) setScriptState("failed"); };
+    document.head.appendChild(script);
+
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, [clientId, onCredential]);
+
+  return { scriptState, buttonRef };
+}
+
+function GateScreen({ config, authHook }) {
+  const [devEmail, setDevEmail] = useState("admin@example.com");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleCredential = useCallback(async (credential) => {
+    setBusy(true); setError("");
+    try { await authHook.signInWithGoogleCredential(credential); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }, [authHook]);
+
+  const { scriptState, buttonRef } = useGoogleSignIn(config.googleClientId, handleCredential);
+  const showFallback = scriptState === "failed" || scriptState === "unconfigured";
+
+  async function tryDevSignIn(email) {
+    setBusy(true); setError("");
+    try { await authHook.signInDev(email); }
+    catch (e) { authHook.signInPreview(email.includes("admin") ? "admin" : "user"); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="gate">
+      <div className="gate-card">
+        <div className="gate-mark">FR</div>
+        <h1>Flow Risk Monitor</h1>
+        <div className="gate-sub">Sign in to view the ensemble's live risk feed. Your account decides whether you see full model internals or a summary view.</div>
+
+        {authHook.sessionNotice && <div className="gate-preview-note">{authHook.sessionNotice}</div>}
+
+        {config.googleClientId && (
+          <>
+            <div className="gate-google-slot" ref={buttonRef}></div>
+            {scriptState === "loading" && <div className="gate-status">Loading Google Sign-In…</div>}
+          </>
+        )}
+
+        {showFallback && (
+          <>
+            {config.googleClientId && (
+              <div className="gate-preview-note">
+                Google Sign-In script didn't load here (common inside a sandboxed preview — it works normally once this page is self-hosted or opened as a local file). Use dev sign-in below instead.
+              </div>
+            )}
+            {!config.googleClientId && (
+              <div className="gate-preview-note">
+                No Google client ID configured (<code>?client_id=</code>). Showing dev / preview sign-in.
+              </div>
+            )}
+            <div className="gate-divider">dev sign-in</div>
+            <div className="gate-row">
+              <input className="gate-input" value={devEmail} onChange={(e) => setDevEmail(e.target.value)} placeholder="email" />
+              <button className="btn primary" disabled={busy} onClick={() => tryDevSignIn(devEmail)}>Continue</button>
+            </div>
+            <div className="quick-row">
+              <button className="btn" disabled={busy} onClick={() => authHook.signInPreview("admin")}>Preview as Admin</button>
+              <button className="btn" disabled={busy} onClick={() => authHook.signInPreview("user")}>Preview as User</button>
+            </div>
+          </>
+        )}
+        {error && <div className="gate-preview-note" style={{ color: "var(--high)" }}>{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+function RiskGauge({ current }) {
+  const level = current ? current.risk_level : null;
+  const score = current ? current.final_score : null;
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Current risk</h2></div>
+      <div className="gauge-body">
+        <div className="gauge-score" style={{ color: level ? RISK_COLOR[level] : "var(--text-faint)" }}>
+          {score !== null ? score.toFixed(3) : "—"}
+        </div>
+        <div className="gauge-level" style={{ color: level ? RISK_COLOR[level] : "var(--text-faint)" }}>
+          {level || "Waiting for first flow"}
+        </div>
+        <div className="gauge-meta"><span>flow</span><span>{current ? current.flow_id : "—"}</span></div>
+      </div>
+    </div>
+  );
+}
+
+function ModelBreakdown({ current, role }) {
+  if (role !== "admin") {
+    return (
+      <div className="panel">
+        <div className="panel-head"><h2>Model breakdown</h2></div>
+        <div className="panel-locked">Per-model scores are visible to admin accounts only.</div>
+      </div>
+    );
+  }
+  const models = [["isolation_forest", "Isolation Forest"], ["autoencoder", "Autoencoder"], ["gmm", "GMM"]];
+  const breakdown = (current && current.model_breakdown) || {};
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Model breakdown</h2></div>
+      <div className="breakdown-body">
+        {models.map(([key, label]) => {
+          const value = breakdown[key];
+          return (
+            <div className="model-row" key={key}>
+              <div className="model-row-top">
+                <span className="model-name">{label}</span>
+                <span className="model-value">{value !== undefined ? value.toFixed(3) : "—"}</span>
+              </div>
+              <div className="bar-track"><div className="bar-fill" style={{ width: `${(value || 0) * 100}%` }} /></div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TrendChart({ events }) {
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    chartRef.current = new Chart(canvasRef.current.getContext("2d"), {
+      type: "line",
+      data: { labels: [], datasets: [{ data: [], borderColor: "#C98453", borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, backgroundColor: "rgba(201,132,83,0.10)" }] },
+      options: {
+        animation: false, responsive: true, maintainAspectRatio: false,
+        scales: { x: { display: false }, y: { min: 0, max: 1, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7C6E5A", font: { family: "IBM Plex Mono", size: 10 }, stepSize: 0.5 } } },
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      },
+    });
+    return () => chartRef.current && chartRef.current.destroy();
+  }, []);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const recent = events.slice(0, MAX_TREND_POINTS).slice().reverse();
+    chartRef.current.data.labels = recent.map((_, i) => i);
+    chartRef.current.data.datasets[0].data = recent.map((e) => e.final_score);
+    chartRef.current.update("none");
+  }, [events]);
+
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Score trend</h2></div>
+      <div className="trend-body" style={{ height: 100 }}><canvas ref={canvasRef}></canvas></div>
+    </div>
+  );
+}
+
+function CategoryDistribution({ events, role }) {
+  if (role !== "admin") {
+    return (
+      <div className="panel">
+        <div className="panel-head"><h2>Attack category mix</h2></div>
+        <div className="panel-locked">Ground-truth category labels are visible to admin accounts only.</div>
+      </div>
+    );
+  }
+  const counts = {};
+  events.forEach((e) => { const c = e.attack_category || "Unknown"; counts[c] = (counts[c] || 0) + 1; });
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const max = rows.length ? rows[0][1] : 1;
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Attack category mix</h2><span className="count">session</span></div>
+      <div className="dist-body">
+        {rows.length === 0 && <div style={{ fontSize: 12, color: "var(--text-faint)" }}>No flows yet.</div>}
+        {rows.map(([cat, count]) => (
+          <div className="dist-row" key={cat}>
+            <span className="dist-label">{cat}</span>
+            <div className="dist-track"><div className="dist-fill" style={{ width: `${(count / max) * 100}%` }} /></div>
+            <span className="dist-count">{count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProtocolDistribution({ events }) {
+  const counts = {};
+  events.forEach((e) => { const p = e.protocol || "Other"; counts[p] = (counts[p] || 0) + 1; });
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const max = rows.length ? rows[0][1] : 1;
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Protocol mix</h2><span className="count">session</span></div>
+      <div className="dist-body">
+        {rows.length === 0 && <div style={{ fontSize: 12, color: "var(--text-faint)" }}>No flows yet.</div>}
+        {rows.map(([proto, count]) => (
+          <div className="dist-row" key={proto}>
+            <span className="dist-label">{proto}</span>
+            <div className="dist-track"><div className="dist-fill" style={{ width: `${(count / max) * 100}%` }} /></div>
+            <span className="dist-count">{count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AlertsStrip({ events }) {
+  const highs = events.filter((e) => e.risk_level === "High").slice(0, MAX_ALERTS);
+  return (
+    <div className="panel alerts-panel">
+      <div className="panel-head"><h2>Threat alerts</h2><span className="count">last {MAX_ALERTS}</span></div>
+      {highs.length === 0 ? (
+        <div className="alerts-empty">No High-risk flows yet this session.</div>
+      ) : (
+        highs.map((e) => (
+          <div className="alert-row" key={e.flow_id + e.timestamp}>
+            <span className="alert-dot"></span>
+            <span className="flow-id">{e.flow_id}</span>
+            <span className="cat">{e.attack_category || "unclassified"}</span>
+            <span className="score">{e.final_score.toFixed(3)}</span>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function Feed({ events }) {
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Live flow feed</h2><span className="count">{events.length} flows</span></div>
+      <div className="feed">
+        {events.length === 0 ? (
+          <div className="feed-empty">Waiting for the first flow…</div>
+        ) : (
+          events.map((e) => (
+            <div className={`feed-row risk-${e.risk_level}`} key={e.flow_id + e.timestamp}>
+              <span className="flow-id">{e.flow_id}</span>
+              <span className="proto">{e.protocol || "—"}</span>
+              <span className="category">{e.attack_category || "—"}</span>
+              <span className="score">{e.final_score.toFixed(3)}</span>
+              <span className={`pill ${e.risk_level}`}>{e.risk_level}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatsStrip({ events, connectedSince }) {
+  const total = events.length;
+  const highCount = events.filter((e) => e.risk_level === "High").length;
+  const avg = total ? events.reduce((s, e) => s + e.final_score, 0) / total : 0;
+  const uptimeSec = Math.max(0, Math.floor((Date.now() - connectedSince) / 1000));
+  const uptime = uptimeSec < 60 ? `${uptimeSec}s` : `${Math.floor(uptimeSec / 60)}m ${uptimeSec % 60}s`;
+  return (
+    <div className="stats-strip">
+      <div className="stat-tile"><div className="stat-label">Flows scored</div><div className="stat-value">{total}</div></div>
+      <div className="stat-tile"><div className="stat-label">High risk</div><div className="stat-value" style={{ color: highCount ? "var(--high)" : "var(--text)" }}>{total ? `${Math.round((highCount / total) * 100)}%` : "—"}</div></div>
+      <div className="stat-tile"><div className="stat-label">Avg score</div><div className="stat-value">{avg.toFixed(3)}</div></div>
+      <div className="stat-tile"><div className="stat-label">Session</div><div className="stat-value">{uptime}</div></div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const copy = { connecting: "Connecting…", live: "Connected", simulated: "Simulated data", offline: "Reconnecting…" }[status];
+  return <span className="mode-badge"><span className={`conn-dot ${status}`}></span>{copy}</span>;
+}
+
+function Dashboard({ config, authHook }) {
+  const { auth, signOut, invalidateSession } = authHook;
+  const { status, events } = useRiskFeed(config.wsUrl, auth, invalidateSession);
+  const current = events[0] || null;
+  const connectedSince = useRef(Date.now()).current;
+  const role = auth.role;
+
+  return (
+    <div className="app">
+      <div className="topbar">
+        <div className="topbar-left">
+          <div className="topbar-mark">FR</div>
+          <div>
+            <h1>Flow Risk Monitor</h1>
+            <div className="subtitle">Isolation Forest, Autoencoder, and GMM ensemble — CICIoT2023 dataset replay</div>
+          </div>
+        </div>
+        <div className="topbar-right">
+          <span className="mode-badge">Dataset replay</span>
+          <span className={`role-badge ${role}`}>{role}</span>
+          <StatusBadge status={status} />
+          <span className="signout-link" onClick={signOut}>Sign out</span>
+        </div>
+      </div>
+
+      {status === "simulated" && (
+        <div className="sim-banner">
+          {auth.mode === "preview"
+            ? <>Preview mode — no backend connection. Sign in with a real account once your backend is running to see live scores.</>
+            : <>Showing simulated scores — no backend found at <code>{config.wsUrl}</code>. Start yours with <code>uvicorn backend.main:app --reload</code>.</>}
+        </div>
+      )}
+
+      <StatsStrip events={events} connectedSince={connectedSince} />
+
+      <div className="grid">
+        <div className="feed-col">
+          <AlertsStrip events={events} />
+          <Feed events={events} />
+        </div>
+        <div className="sidebar">
+          <div className="panel session-card">
+            <div className="session-who">
+              <span className="session-email">{auth.email}</span>
+              <span className="session-role">{role} account</span>
+            </div>
+          </div>
+          <RiskGauge current={current} />
+          <ModelBreakdown current={current} role={role} />
+          <TrendChart events={events} />
+          <CategoryDistribution events={events} role={role} />
+          <ProtocolDistribution events={events} />
+        </div>
+      </div>
+
+      <div className="footer">
+        <div className="legend">
+          <span className="legend-item"><span className="legend-dot" style={{ background: "var(--low)" }}></span>Low</span>
+          <span className="legend-item"><span className="legend-dot" style={{ background: "var(--medium)" }}></span>Medium</span>
+          <span className="legend-item"><span className="legend-dot" style={{ background: "var(--high)" }}></span>High</span>
+        </div>
+        <div>Attack category shown is ground truth from the replayed dataset, not a model prediction.</div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const config = getConfig();
+  const authHook = useAuth(config.apiBase);
+
+  useEffect(() => {
+    // Dark is the deliberate default (see the CSS comment above the
+    // [data-theme="light"] block) -- light is opt-in only, via
+    // ?theme=light, never inferred from the OS/browser preference.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("theme") === "light") {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+  }, []);
+
+  if (!authHook.auth) return <GateScreen config={config} authHook={authHook} />;
+  return <Dashboard config={config} authHook={authHook} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
