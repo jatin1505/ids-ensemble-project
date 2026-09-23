@@ -16,22 +16,22 @@
 
 <style>
   :root {
-    --bg: #18130F;
-    --bg-glow: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(189,123,79,0.09), transparent);
-    --panel: #221B15;
-    --panel-raised: #2B2219;
-    --hairline: #3D3226;
-    --text: #F3E9DA;
-    --text-muted: #B7A78F;
-    --text-faint: #7C6E5A;
-    --accent: #C98453;
-    --accent-dim: rgba(201,132,83,0.14);
-    --low: #6FBF73;
-    --low-dim: rgba(111,191,115,0.14);
-    --medium: #E8A33D;
-    --medium-dim: rgba(232,163,61,0.16);
-    --high: #E5595A;
-    --high-dim: rgba(229,89,90,0.16);
+    --bg: #131315;
+    --bg-glow: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(255,255,255,0.05), transparent);
+    --panel: #1B1C1F;
+    --panel-raised: #232427;
+    --hairline: #2F3034;
+    --text: #EDEDEF;
+    --text-muted: #9A9BA1;
+    --text-faint: #6B6C72;
+    --accent: #C7C8CC;
+    --accent-dim: rgba(199,200,204,0.14);
+    --low: #3FB950;
+    --low-dim: rgba(63,185,80,0.14);
+    --medium: #E3B341;
+    --medium-dim: rgba(227,179,65,0.16);
+    --high: #F85149;
+    --high-dim: rgba(248,81,73,0.16);
     --radius: 6px;
     --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
@@ -44,13 +44,13 @@
      setting. Light is available but opt-in only, via ?theme=light
      (see the App component), never automatic. */
   :root[data-theme="light"] {
-    --bg: #F7F2EA;
+    --bg: #F2F2F3;
     --panel: #FFFFFF;
-    --panel-raised: #FBF7F0;
-    --hairline: #E4D9C8;
-    --text: #2A2116;
-    --text-muted: #6E6151;
-    --text-faint: #A2937C;
+    --panel-raised: #FAFAFB;
+    --hairline: #E2E3E5;
+    --text: #17181A;
+    --text-muted: #6B6C72;
+    --text-faint: #9A9BA1;
   }
 
   * { box-sizing: border-box; }
@@ -62,19 +62,62 @@
   /* ---- Gate (sign-in) screen ---- */
   .gate {
     flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;
+    gap: 0; min-height: 100vh;
+  }
+  .gate-split {
+    display: flex; width: 100%; max-width: 920px; min-height: 560px;
+    border: 1px solid var(--hairline); border-radius: 14px; overflow: hidden;
+    background: var(--panel); box-shadow: 0 30px 80px -20px rgba(0,0,0,0.45);
+    animation: gateIn 480ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes gateIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @media (max-width: 760px) { .gate-split { flex-direction: column; min-height: 0; } }
+
+  .illustration-panel {
+    flex: 1.1; position: relative; background: radial-gradient(ellipse 500px 400px at 50% 40%, rgba(199,200,204,0.12), transparent 70%), #0E0E10;
+    display: flex; align-items: center; justify-content: center; padding: 32px;
+    border-right: 1px solid var(--hairline);
+  }
+  @media (max-width: 760px) { .illustration-panel { border-right: none; border-bottom: 1px solid var(--hairline); min-height: 200px; } }
+  .illustration-caption {
+    position: absolute; bottom: 22px; left: 0; right: 0; text-align: center;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); letter-spacing: 0.03em;
   }
   .gate-card {
     width: 100%; max-width: 400px;
-    background: var(--panel); border: 1px solid var(--hairline); border-radius: 10px;
-    padding: 32px 28px 28px;
+    background: var(--panel); border: none; border-radius: 0;
+    padding: 40px 36px;
+    display: flex; flex-direction: column; justify-content: center;
+    flex: 1;
   }
   .gate-mark {
     width: 40px; height: 40px; border-radius: 9px;
-    background: linear-gradient(155deg, var(--accent), #8A5230);
+    background: linear-gradient(155deg, var(--accent), #6B6C72);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-mono); font-weight: 600; color: #1A1310; font-size: 16px;
+    font-family: var(--font-mono); font-weight: 600; color: #16171A; font-size: 16px;
     margin-bottom: 18px;
   }
+
+  /* ---- Boot screen (backend health check) ---- */
+  .boot-screen {
+    flex: 1; min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 20px; padding: 24px;
+    animation: gateIn 400ms ease-out;
+  }
+  .boot-status-text {
+    font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); text-align: center;
+  }
+  .loading-dot { display: inline-block; opacity: 0.3; animation: dotPulse 1.2s infinite; }
+  .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotPulse { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
+  .boot-elapsed { font-size: 11px; color: var(--text-faint); }
+  .boot-skip {
+    margin-top: 4px; font-size: 12px; color: var(--text-faint); text-decoration: underline;
+    cursor: pointer; opacity: 0; transition: opacity 350ms ease-out; pointer-events: none;
+  }
+  .boot-skip.visible { opacity: 1; pointer-events: auto; }
+  .boot-skip:hover { color: var(--text-muted); }
   .gate-card h1 { font-size: 19px; margin: 0 0 4px; }
   .gate-card .gate-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
   .gate-google-slot { min-height: 44px; display: flex; justify-content: center; margin-bottom: 6px; }
@@ -100,7 +143,7 @@
     padding: 9px 14px; cursor: pointer;
   }
   .btn:hover { border-color: var(--accent); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1A1310; font-weight: 600; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #16171A; font-weight: 600; }
   .btn.primary:hover { filter: brightness(1.08); }
   .quick-row { display: flex; gap: 8px; margin-top: 10px; }
   .quick-row .btn { flex: 1; font-size: 12px; padding: 8px 10px; }
@@ -110,9 +153,9 @@
   .topbar-left { display: flex; align-items: center; gap: 12px; }
   .topbar-mark {
     width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
-    background: linear-gradient(155deg, var(--accent), #8A5230);
+    background: linear-gradient(155deg, var(--accent), #6B6C72);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-mono); font-weight: 600; color: #1A1310; font-size: 13px;
+    font-family: var(--font-mono); font-weight: 600; color: #16171A; font-size: 13px;
   }
   .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
   .topbar .subtitle { font-size: 12.5px; color: var(--text-muted); margin-top: 1px; }
@@ -220,6 +263,27 @@
   ::-webkit-scrollbar-track { background: transparent; }
   @media (prefers-reduced-motion: reduce) { .feed-row { animation: none; } .bar-fill { transition: none; } }
   a { color: var(--accent); }
+
+  /* ---- Network illustration (gate + boot screen) ---- */
+  .illustration-svg circle.node-dim { fill: var(--text-faint); opacity: 0.55; }
+  .illustration-svg circle.node-alert { animation: nodeAlertPulse 1.8s ease-in-out infinite; }
+  .illustration-svg circle.node-alert.medium { fill: var(--medium); }
+  .illustration-svg circle.node-alert.high { fill: var(--high); }
+  .illustration-svg .edge { stroke: var(--hairline); stroke-width: 1; }
+  .illustration-svg .edge-active {
+    stroke: var(--accent); stroke-width: 1.2; stroke-dasharray: 4 5; opacity: 0.7;
+    animation: edgeFlow 2.4s linear infinite;
+  }
+  .illustration-svg .ring { fill: none; stroke: var(--hairline); }
+  .illustration-svg .sweep-wedge { transform-origin: 200px 200px; }
+  @keyframes nodeAlertPulse {
+    0%, 100% { r: 6; opacity: 0.85; }
+    50% { r: 9; opacity: 1; }
+  }
+  @keyframes edgeFlow { to { stroke-dashoffset: -18; } }
+  @media (prefers-reduced-motion: reduce) {
+    .illustration-svg circle.node-alert, .illustration-svg .edge-active, .illustration-svg .sweep-wedge { animation: none; }
+  }
 </style>
 </head>
 <body>
@@ -458,6 +522,112 @@ function useGoogleSignIn(clientId, onCredential) {
   return { scriptState, buttonRef };
 }
 
+// ---- Original animated illustration (no external image — an inline SVG
+// so there's no licensing question and it matches the palette exactly) ----
+// Depicts flows as a node graph with a rotating scan sweep, a couple of
+// nodes pulsing in risk colors — the same visual language as the live
+// feed, just decorative here.
+function NetworkIllustration({ size = 320 }) {
+  const nodes = [
+    { x: 200, y: 90, cls: "node-dim", r: 4 },
+    { x: 120, y: 140, cls: "node-dim", r: 4 },
+    { x: 280, y: 150, cls: "node-alert medium", r: 6 },
+    { x: 150, y: 230, cls: "node-dim", r: 4 },
+    { x: 250, y: 250, cls: "node-dim", r: 4 },
+    { x: 200, y: 300, cls: "node-alert high", r: 6 },
+    { x: 100, y: 260, cls: "node-dim", r: 4 },
+    { x: 310, y: 230, cls: "node-dim", r: 4 },
+  ];
+  const edges = [
+    [0, 1], [0, 2], [1, 3], [2, 4], [3, 5], [4, 5], [3, 6], [4, 7],
+  ];
+  const activeEdges = new Set([2, 5]); // indices into `edges` that "flow"
+
+  return (
+    <svg className="illustration-svg" viewBox="0 0 400 400" width={size} height={size}>
+      <circle className="ring" cx="200" cy="200" r="150" />
+      <circle className="ring" cx="200" cy="200" r="105" opacity="0.6" />
+      <circle className="ring" cx="200" cy="200" r="60" opacity="0.4" />
+      <g className="sweep-wedge">
+        <path d="M 200 200 L 200 50 A 150 150 0 0 1 329.9 275 Z" fill="url(#sweepGradient)" opacity="0.5">
+          <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="360 200 200" dur="5s" repeatCount="indefinite" />
+        </path>
+      </g>
+      <defs>
+        <radialGradient id="sweepGradient" cx="0.3" cy="0.7">
+          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {edges.map(([a, b], i) => {
+        const n1 = nodes[a], n2 = nodes[b];
+        return (
+          <line key={i} className={activeEdges.has(i) ? "edge edge-active" : "edge"}
+                x1={n1.x} y1={n1.y} x2={n2.x} y2={n2.y} />
+        );
+      })}
+      {nodes.map((n, i) => (
+        <circle key={i} className={n.cls.startsWith("node-alert") ? `node-alert ${n.cls.split(" ")[1]}` : n.cls}
+                cx={n.x} cy={n.y} r={n.r} fill={n.cls === "node-dim" ? undefined : undefined} />
+      ))}
+    </svg>
+  );
+}
+
+// ---- Boot screen: waits for the backend to actually be reachable before
+// showing sign-in, instead of showing a sign-in button that will just
+// fail against a backend that's still loading its models. ----
+const BOOT_POLL_INTERVAL_MS = 1500;
+const BOOT_SKIP_REVEAL_MS = 6000;
+
+function useBackendBoot(apiBase) {
+  const [phase, setPhase] = useState("checking"); // checking | ready | skipped
+  const [elapsed, setElapsed] = useState(0);
+  const [skipVisible, setSkipVisible] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let pollTimer, tickTimer, skipTimer;
+
+    async function poll() {
+      try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch(`${apiBase}/health`, { signal: controller.signal });
+        clearTimeout(t);
+        if (res.ok && !cancelled) { setPhase("ready"); return; }
+      } catch (e) { /* backend not up yet -- keep polling */ }
+      if (!cancelled) pollTimer = setTimeout(poll, BOOT_POLL_INTERVAL_MS);
+    }
+    poll();
+
+    tickTimer = setInterval(() => { if (!cancelled) setElapsed((s) => s + 1); }, 1000);
+    skipTimer = setTimeout(() => { if (!cancelled) setSkipVisible(true); }, BOOT_SKIP_REVEAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(pollTimer); clearInterval(tickTimer); clearTimeout(skipTimer);
+    };
+  }, [apiBase]);
+
+  return { phase, elapsed, skipVisible, skip: () => setPhase("skipped") };
+}
+
+function BootScreen({ elapsed, skipVisible, onSkip }) {
+  return (
+    <div className="boot-screen">
+      <NetworkIllustration size={200} />
+      <div className="boot-status-text">
+        Waking up the backend<span className="loading-dot">.</span><span className="loading-dot">.</span><span className="loading-dot">.</span>
+      </div>
+      <div className="boot-elapsed">{elapsed}s — model loading can take a little while on first start</div>
+      <div className={`boot-skip ${skipVisible ? "visible" : ""}`} onClick={onSkip}>
+        Taking a while? Continue without waiting →
+      </div>
+    </div>
+  );
+}
+
 function GateScreen({ config, authHook }) {
   const [devEmail, setDevEmail] = useState("admin@example.com");
   const [busy, setBusy] = useState(false);
@@ -482,7 +652,12 @@ function GateScreen({ config, authHook }) {
 
   return (
     <div className="gate">
-      <div className="gate-card">
+      <div className="gate-split">
+        <div className="illustration-panel">
+          <NetworkIllustration size={280} />
+          <div className="illustration-caption">live ensemble risk scoring</div>
+        </div>
+        <div className="gate-card">
         <div className="gate-mark">FR</div>
         <h1>Flow Risk Monitor</h1>
         <div className="gate-sub">Sign in to view the ensemble's live risk feed. Your account decides whether you see full model internals or a summary view.</div>
@@ -520,6 +695,7 @@ function GateScreen({ config, authHook }) {
           </>
         )}
         {error && <div className="gate-preview-note" style={{ color: "var(--high)" }}>{error}</div>}
+        </div>
       </div>
     </div>
   );
@@ -584,10 +760,10 @@ function TrendChart({ events }) {
     if (!canvasRef.current) return;
     chartRef.current = new Chart(canvasRef.current.getContext("2d"), {
       type: "line",
-      data: { labels: [], datasets: [{ data: [], borderColor: "#C98453", borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, backgroundColor: "rgba(201,132,83,0.10)" }] },
+      data: { labels: [], datasets: [{ data: [], borderColor: "#C7C8CC", borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, backgroundColor: "rgba(199,200,204,0.10)" }] },
       options: {
         animation: false, responsive: true, maintainAspectRatio: false,
-        scales: { x: { display: false }, y: { min: 0, max: 1, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7C6E5A", font: { family: "IBM Plex Mono", size: 10 }, stepSize: 0.5 } } },
+        scales: { x: { display: false }, y: { min: 0, max: 1, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#6B6C72", font: { family: "IBM Plex Mono", size: 10 }, stepSize: 0.5 } } },
         plugins: { legend: { display: false }, tooltip: { enabled: false } },
       },
     });
@@ -797,6 +973,7 @@ function Dashboard({ config, authHook }) {
 function App() {
   const config = getConfig();
   const authHook = useAuth(config.apiBase);
+  const boot = useBackendBoot(config.apiBase);
 
   useEffect(() => {
     // Dark is the deliberate default (see the CSS comment above the
@@ -807,6 +984,17 @@ function App() {
       document.documentElement.setAttribute("data-theme", "light");
     }
   }, []);
+
+  // Wait for the backend to actually respond before offering sign-in --
+  // otherwise the sign-in button renders instantly (frontend is just a
+  // static file) while the backend may still be loading models, and
+  // clicking it produces a confusing fetch failure. `skip` lets someone
+  // deliberately proceed anyway (preview mode doesn't need a backend at
+  // all, and someone reconnecting to a backend they know is slow
+  // shouldn't be stuck waiting either).
+  if (boot.phase === "checking") {
+    return <BootScreen elapsed={boot.elapsed} skipVisible={boot.skipVisible} onSkip={boot.skip} />;
+  }
 
   if (!authHook.auth) return <GateScreen config={config} authHook={authHook} />;
   return <Dashboard config={config} authHook={authHook} />;
