@@ -23,9 +23,14 @@ predates the LSTM->GMM swap (docs/DECISIONS.md #6-9) and had src_ip/dst_ip
 as REQUIRED fields. CICIoT2023's CSV has no IP column at all (DECISIONS.md
 #6), so replay_engine.py could never actually have populated those --
 made them Optional instead of dropping them; see the field comments below.
+
+Live-capture extension: RiskEvent now carries a `source` field ("replay" or
+"live") so a replayed dataset row can never be mistaken for traffic captured
+from the lab (docs/LIVE_CAPTURE_HANDOFF.md, decision D5). It defaults to
+"replay", so every existing producer keeps working unchanged.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
 
 # The three models in the ensemble, defined once so every other file
@@ -34,6 +39,12 @@ from typing import Literal
 ModelName = Literal["isolation_forest", "autoencoder", "gmm"]
 
 RiskLevel = Literal["Low", "Medium", "High"]
+
+# Where an event's input came from. "replay" = held-out CICIoT2023 rows
+# streamed on a timer; "live" = features extracted from packets we captured
+# ourselves. Every RiskEvent carries this so replay can never be mistaken for
+# live monitoring (docs/LIVE_CAPTURE_HANDOFF.md, decision D5).
+EventSource = Literal["replay", "live"]
 
 
 class ModelOutput(BaseModel):
@@ -47,6 +58,10 @@ class ModelOutput(BaseModel):
     Consumed by:
       - ensemble/score_normalization.py
     """
+    # Silences pydantic's warning about fields starting with "model_"
+    # (model_name). The warning is harmless; this keeps output clean.
+    model_config = ConfigDict(protected_namespaces=())
+
     model_name: ModelName
     flow_id: str
     raw_score: float
@@ -68,6 +83,10 @@ class RiskEvent(BaseModel):
       - backend/websocket_manager.py (serializes this to JSON, pushes it)
       - frontend/ (renders the risk gauge, alert feed, trend chart from it)
     """
+    # Silences pydantic's warning about fields starting with "model_"
+    # (model_breakdown). The warning is harmless; this keeps output clean.
+    model_config = ConfigDict(protected_namespaces=())
+
     flow_id: str
 
     # Optional, not required: CICIoT2023's CSV has no source/destination IP
@@ -103,3 +122,10 @@ class RiskEvent(BaseModel):
     # attack type. Populated only because we control the replay data and
     # already know the label; would be None for genuinely live traffic.
     attack_category: str | None = None
+
+    # Where this event's input came from: replayed dataset row or packets
+    # captured in the lab. Default "replay" keeps every existing producer
+    # (replay_engine.py, risk_engine.py) valid with no code changes; live
+    # code sets "live". attack_category stays None for live events unless we
+    # later join the lab's phase log.
+    source: EventSource = "replay"

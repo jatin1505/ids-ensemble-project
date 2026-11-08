@@ -376,15 +376,20 @@ function useAuth(apiBase) {
     else storage.removeItem(AUTH_STORAGE_KEY);
   }, [storage]);
 
-  const signInWithGoogleCredential = useCallback(async (credential) => {
-    const res = await fetch(`${apiBase}/auth/google`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential }),
-    });
-    if (!res.ok) throw new Error("Google sign-in was rejected by the backend");
-    const data = await res.json();
-    persist({ ...data, mode: "google" });
-  }, [apiBase, persist]);
+const signInWithGoogleCredential = useCallback(async (credential) => {
+  const res = await fetch(`${apiBase}/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
+  });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => null);
+    console.error("Google sign-in failed:", res.status, errBody);
+    throw new Error(errBody?.detail || "Google sign-in was rejected by the backend");
+  }
+  const data = await res.json();
+  persist({ ...data, mode: "google" });
+}, [apiBase, persist]);
 
   const signInDev = useCallback(async (email) => {
     const res = await fetch(`${apiBase}/auth/dev`, {
