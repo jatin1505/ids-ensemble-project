@@ -32,6 +32,7 @@ print(f"[debug] looking for .env at: {Path(__file__).resolve().parent.parent / '
 print(f"[debug] that path exists: {(Path(__file__).resolve().parent.parent / '.env').exists()}")
 import os
 print(f"[debug] APP_JWT_SECRET is now: {os.environ.get('APP_JWT_SECRET')!r}")
+print(f"[debug] GOOGLE_CLIENT_ID is now: {os.environ.get('GOOGLE_CLIENT_ID')!r}")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
