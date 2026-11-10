@@ -7,9 +7,18 @@ replayed event can never be mistaken for a live one, so these tests pin down:
 the safe default, the JSON the dashboard receives, and rejection of anything
 that is not "replay" or "live".
 
-Run from the project root:
-    PYTHONPATH=. pytest tests/test_schemas.py
+Run from the project root, either way (both work on Windows PowerShell):
+    python -m pytest tests/test_schemas.py
+    python tests/test_schemas.py
 """
+import sys
+from pathlib import Path
+
+# Make `shared` importable no matter where this is run from. Without this,
+# `python tests/test_schemas.py` fails with "No module named 'shared'",
+# because Python only puts the script's own folder (tests/) on the path.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import json
 
 import pytest
@@ -51,3 +60,7 @@ def test_source_is_present_in_the_json_sent_to_the_dashboard():
 def test_unknown_source_is_rejected():
     with pytest.raises(ValidationError):
         _event(source="simulated")
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, "-v"]))
