@@ -1,6 +1,6 @@
 # Target: Python 3.10 or 3.11. tensorflow==2.15.0 and numpy==1.26.4 don't
-# have installable builds for very new Python versions like 3.13/3.14 yet --
-# use `py -3.10 -m venv .venv` (or 3.11) when creating the virtual env.
+# have installable builds for very new Python versions like 3.12/3.13/3.14 yet --
+# on Ubuntu 24.04 install Python 3.11 first (docs/LINUX_DEV_SETUP.md).
 
 fastapi==0.111.0
 uvicorn[standard]==0.29.0
@@ -15,8 +15,7 @@ matplotlib==3.8.4
 seaborn==0.13.2
 tensorflow==2.15.0
 
-PyJWT==2.7.0
-google-auth==2.58.0
-python-dotenv==1.2.2
+# Live-capture extension: reads packets from .pcap files (live/feature_extractor.py)
+dpkt==1.9.8
 
 pytest>=7.0
